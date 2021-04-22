@@ -90,7 +90,7 @@ class RootRouterDelegate extends RouterDelegate<List<PageRouteInfo>>
       child: StackRouterScope(
           controller: controller,
           child: AutoRouteNavigator(
-            router: controller,
+            stackRouter: controller,
             placeholder: placeholder,
             navRestorationScopeId: navRestorationScopeId,
             navigatorObservers: navigatorObservers,
@@ -100,38 +100,46 @@ class RootRouterDelegate extends RouterDelegate<List<PageRouteInfo>>
 }
 
 class AutoRouteNavigator extends StatelessWidget {
-  final StackRouter router;
+  final StackRouter? stackRouter;
+  final TabsRouter? tabsRouter;
   final String? navRestorationScopeId;
   final WidgetBuilder? placeholder;
   final List<NavigatorObserver> navigatorObservers;
   final void Function(Route route)? didPop;
 
   const AutoRouteNavigator({
-    required this.router,
+    this.stackRouter,
+    this.tabsRouter,
     required this.navigatorObservers,
     this.navRestorationScopeId,
     this.didPop,
     this.placeholder,
     Key? key,
-  }) : super(key: key);
+  }) : assert(stackRouter != null || tabsRouter != null), super(key: key);
 
   @override
-  Widget build(BuildContext context) => Navigator(
-        key: router.navigatorKey,
-        observers: navigatorObservers,
-        restorationScopeId: navRestorationScopeId,
-        pages:
-            router.hasEntries ? router.stack : [_PlaceHolderPage(placeholder)],
-        transitionDelegate: _CustomTransitionDelegate(),
-        onPopPage: (route, result) {
-          if (!route.didPop(result)) {
-            return false;
-          }
-          router.removeLast();
-          didPop?.call(route);
-          return true;
-        },
-      );
+  Widget build(BuildContext context) {
+    final pages = (tabsRouter != null) ?
+      tabsRouter!.hasEntries ? tabsRouter!.stack : [_PlaceHolderPage(placeholder)] :
+      stackRouter!.hasEntries ? stackRouter!.stack : [_PlaceHolderPage(placeholder)];
+
+    return Navigator(
+      key: (stackRouter != null) ? stackRouter!.navigatorKey : null,
+      observers: navigatorObservers,
+      restorationScopeId: navRestorationScopeId,
+      pages: pages,
+      transitionDelegate: _CustomTransitionDelegate(),
+      onPopPage: (route, result) {
+        if (!route.didPop(result)) {
+          return false;
+        }
+        if (stackRouter != null)
+          stackRouter!.removeLast();
+        didPop?.call(route);
+        return true;
+      },
+    );
+  }
 }
 
 class _PlaceHolderPage extends Page {

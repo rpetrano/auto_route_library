@@ -56,20 +56,29 @@ class AutoRouter extends StatefulWidget {
 }
 
 class AutoRouterState extends State<AutoRouter> {
-  StackRouter? _controller;
+  TabsRouter? _tabsController;
+  StackRouter? _stackController;
 
-  StackRouter? get controller => _controller;
+  TabsRouter? get tabsController => _tabsController;
+  StackRouter? get stackController => _stackController;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_controller == null) {
+    if (_stackController == null || _tabsController == null) {
       final entry = StackEntryScope.of(context);
       assert(entry is RoutingController);
-      _controller = entry as StackRouter?;
-      assert(_controller != null);
+      if (entry is ParallelBranchEntry)
+        _tabsController = entry as TabsRouter?;
+      else
+        _stackController = entry as StackRouter?;
+      assert(_tabsController != null || _stackController != null);
       var rootDelegate = RootRouterDelegate.of(context);
-      _controller?.addListener(() {
+      _stackController?.addListener(() {
+        rootDelegate.notify();
+        setState(() {});
+      });
+      _tabsController?.addListener(() {
         rootDelegate.notify();
         setState(() {});
       });
@@ -78,23 +87,43 @@ class AutoRouterState extends State<AutoRouter> {
 
   @override
   Widget build(BuildContext context) {
-    assert(_controller != null);
-    var navigator = AutoRouteNavigator(
-      router: _controller!,
-      navRestorationScopeId: widget.navRestorationScopeId,
-      navigatorObservers: widget.navigatorObservers,
-    );
-    return RoutingControllerScope(
-      controller: _controller!,
-      child: StackRouterScope(
-        controller: _controller!,
-        child: widget.builder == null
-            ? navigator
-            : Builder(
-                builder: (ctx) => widget.builder!(ctx, navigator),
-              ),
-      ),
-    );
+    assert(_tabsController != null || _stackController != null);
+
+    if (_stackController != null) {
+      var navigator = AutoRouteNavigator(
+        stackRouter: _stackController!,
+        navRestorationScopeId: widget.navRestorationScopeId,
+        navigatorObservers: widget.navigatorObservers,
+      );
+      return RoutingControllerScope(
+        controller: _stackController!,
+        child: StackRouterScope(
+          controller: _stackController!,
+          child: widget.builder == null
+              ? navigator
+              : Builder(
+                  builder: (ctx) => widget.builder!(ctx, navigator),
+                ),
+        ),
+      );
+    } else {
+      var navigator = AutoRouteNavigator(
+        tabsRouter: _tabsController!,
+        navRestorationScopeId: widget.navRestorationScopeId,
+        navigatorObservers: widget.navigatorObservers,
+      );
+      return RoutingControllerScope(
+        controller: _tabsController!,
+        child: TabsRouterScope(
+          controller: _tabsController!,
+          child: widget.builder == null
+              ? navigator
+              : Builder(
+                  builder: (ctx) => widget.builder!(ctx, navigator),
+                ),
+        )
+      );
+    }
   }
 }
 
@@ -150,7 +179,7 @@ class _DeclarativeAutoRouterState extends State<_DeclarativeAutoRouter> {
     assert(_controller != null);
 
     var navigator = AutoRouteNavigator(
-      router: _controller!,
+      stackRouter: _controller!,
       navRestorationScopeId: widget.navRestorationScopeId,
       navigatorObservers: widget.navigatorObservers,
       didPop: (route) {
